@@ -55,7 +55,7 @@
 <h1>¿Quieres salir en las pantallas del local? 📺</h1>
 <p class="sub">Lo que envíes lo revisa el equipo y, si está todo bien, sale en la pantalla.</p>
 
-<div class="mesa-top">📍 Estás en la mesa <b id="mesaTxt">—</b> <button id="cambiarMesa">Cambiar</button></div>
+<div class="mesa-top">👋 Participas como <b id="mesaTxt">—</b> <button id="cambiarMesa">Cambiar</button></div>
 
 <div class="pestanas">
   <button data-p="reaccionar" class="activa">🔥 Reaccionar</button>
@@ -67,11 +67,11 @@
 <div class="caja activa" id="reaccionar">
   <p class="sub" style="margin:0 0 14px">Pulsa todas las veces que quieras: salen en la tele y llenan la barra del ambiente 🔥</p>
   <div class="emojis"><button data-emoji="🔥">🔥</button><button data-emoji="😂">😂</button><button data-emoji="❤️">❤️</button><button data-emoji="🎉">🎉</button></div>
-  <p class="sub" style="margin:14px 0 0">🎡 Las mesas que participan entran en la <b>ruleta de la suerte</b>.</p>
+  <p class="sub" style="margin:14px 0 0">🎡 Todos los que participan entran en la <b>ruleta de la suerte</b>.</p>
 </div>
 
 <div class="caja" id="dedicatoria">
-  <label>Tu mesa</label><input type="text" id="mesaD" maxlength="10" inputmode="numeric" placeholder="Ej.: 7">
+  <label>Mesa, nombre o @</label><input type="text" id="mesaD" maxlength="20" placeholder="Mesa 7, Laura o @tuinstagram">
   <label>Tu mensaje</label><textarea id="texto" maxlength="90" placeholder="Feliz cumple, Laura 🎉 · Saludos a la mesa 7"></textarea>
   <div class="cuenta"><span id="cuenta">0</span>/90</div>
   <button class="enviar" data-enviar="dedicatoria">Enviar a la tele</button>
@@ -79,7 +79,7 @@
 
 <div class="caja" id="cumple">
   <label>¿Quién cumple años?</label><input type="text" id="nombre" maxlength="30" placeholder="Nombre">
-  <label>Tu mesa</label><input type="text" id="mesaC" maxlength="10" inputmode="numeric" placeholder="Ej.: 7">
+  <label>Mesa, nombre o @ (de quien lo manda)</label><input type="text" id="mesaC" maxlength="20" placeholder="Mesa 7, Laura o @tuinstagram">
   <label>¿A qué hora lo celebramos? (opcional)</label><input type="time" id="hora">
   <p class="sub" style="text-align:left;margin:8px 0 0">Si no pones hora, sale en cuanto el equipo lo apruebe.</p>
   <button class="enviar" data-enviar="cumple">Avisar del cumpleaños</button>
@@ -89,7 +89,7 @@
   <input type="file" id="archivo" accept="image/*" hidden>
   <button class="foto-btn" id="elegir">📷 Hacer o elegir una foto</button>
   <img id="previa" alt="">
-  <label>Tu mesa</label><input type="text" id="mesaF" maxlength="10" inputmode="numeric" placeholder="Ej.: 7">
+  <label>Mesa, nombre o @</label><input type="text" id="mesaF" maxlength="20" placeholder="Mesa 7, Laura o @tuinstagram">
   <label class="check"><input type="checkbox" id="permiso">
     Todas las personas que salen en la foto están de acuerdo en que aparezca en la pantalla del bar. Se borra mañana.</label>
   <button class="enviar" data-enviar="foto">Enviar la foto</button>
@@ -97,9 +97,9 @@
 
 <div id="aviso"></div>
 <div class="modal" id="pideMesa"><div class="caja">
-  <label style="margin-top:0;font-size:18px">¿En qué mesa estáis? 📍</label>
-  <input type="text" id="mesaNueva" maxlength="10" inputmode="numeric" placeholder="Ej.: 7">
-  <p class="sub" style="text-align:left;margin:8px 0 0">Así vuestra mesa entra en la ruleta de la suerte 🎡</p>
+  <label style="margin-top:0;font-size:18px">¿Cómo te llamamos? 👋</label>
+  <input type="text" id="mesaNueva" maxlength="20" placeholder="Mesa 7, Laura o @tuinstagram" autocapitalize="off" autocorrect="off">
+  <p class="sub" style="text-align:left;margin:8px 0 0">Pon tu número de mesa, tu nombre o tu @ de Instagram. Así entras en la ruleta de la suerte 🎡 y te nombramos en la tele.</p>
   <button class="enviar" id="guardarMesa">Listo</button>
 </div></div>
 <p class="pie">Darkom's Shisha Bar · @darkomsshishabar<br>Los mensajes y fotos se borran a las 24 horas.</p>
@@ -115,14 +115,22 @@ const rpc = (f, datos) => fetch(SUPABASE + "/rest/v1/rpc/" + f, { method: "POST"
 const guarda = (k, v) => { try { localStorage.setItem(k, v); } catch {} }, lee = k => { try { return localStorage.getItem(k); } catch { return null; } };
 // cada móvil tiene su número (para el «espera un momento»: en el WiFi del bar todos comparten conexión)
 const disp = lee("darkoms_disp") || (() => { const d = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now()); guarda("darkoms_disp", d); return d; })();
-// la mesa se pregunta SIEMPRE al abrir la página (la gente cambia de mesa); sale escrita la última para ir rápido
+// «¿Cómo te llamamos?»: mesa, nombre o @. Se pregunta SIEMPRE al abrir la página (la gente cambia de mesa); sale escrito lo último para ir rápido
+// "mesa 7" → 7 · "@Laura_23" → @laura_23 · "laura" → Laura (solo letras, números, @, punto y guion bajo)
+function limpiaQuien(t) {
+  t = (t || "").trim().replace(/\s+/g, " ").replace(/[^\p{L}\p{N}@._ ]/gu, "").slice(0, 20).trim();
+  if (/^mesa\s*\d+$/i.test(t)) return t.replace(/\D/g, "");
+  if (t.startsWith("@")) return "@" + t.slice(1).replace(/[^\w.]/g, "").toLowerCase();
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+const etiqueta = q => /^\d+$/.test(q) ? "Mesa " + q : q;
 let mesa = "", mesaAntes = (() => { try { return JSON.parse(lee("darkoms_mesa")).m || ""; } catch { return ""; } })();
 function ponerMesa(m) {
-  mesa = m; guarda("darkoms_mesa", JSON.stringify({ m, t: Date.now() })); $("mesaTxt").textContent = m || "—";
+  mesa = limpiaQuien(m); if (mesa) guarda("darkoms_mesa", JSON.stringify({ m: mesa, t: Date.now() })); $("mesaTxt").textContent = mesa ? etiqueta(mesa) : "—"; m = mesa;
   ["mesaD", "mesaC", "mesaF"].forEach(id => $(id).value = m);
 }
 const pedirMesa = () => { $("mesaNueva").value = mesa || mesaAntes; $("pideMesa").classList.add("abierta"); setTimeout(() => $("mesaNueva").focus(), 50); };
-$("guardarMesa").onclick = () => { const m = $("mesaNueva").value.trim(); if (!m) return $("mesaNueva").focus(); ponerMesa(m); $("pideMesa").classList.remove("abierta"); };
+$("guardarMesa").onclick = () => { const m = limpiaQuien($("mesaNueva").value); if (!m || m === "@") return $("mesaNueva").focus(); ponerMesa(m); $("pideMesa").classList.remove("abierta"); };
 $("cambiarMesa").onclick = pedirMesa;
 ponerMesa(mesa); if (codigo && !mesa) pedirMesa();
 // reacciones: se juntan y se mandan en grupos (como mucho 15 cada 1,7 s)
@@ -175,13 +183,13 @@ document.querySelectorAll("[data-enviar]").forEach(b => b.onclick = async () => 
   const datos = { p_codigo: codigo, p_tipo: tipo, p_mesa: null, p_texto: null, p_nombre: null, p_hora: null, p_foto: null, p_disp: disp };
   if (!codigo) return aviso("Escanea el QR que sale en la tele del bar para participar 📲");
   if (tipo === "dedicatoria") {
-    datos.p_mesa = $("mesaD").value.trim(); datos.p_texto = $("texto").value.trim();
+    datos.p_mesa = limpiaQuien($("mesaD").value); datos.p_texto = $("texto").value.trim();
     if (!datos.p_texto) return aviso("Escribe tu mensaje");
   } else if (tipo === "cumple") {
-    datos.p_nombre = $("nombre").value.trim(); datos.p_mesa = $("mesaC").value.trim(); datos.p_hora = $("hora").value || null;
+    datos.p_nombre = $("nombre").value.trim(); datos.p_mesa = limpiaQuien($("mesaC").value); datos.p_hora = $("hora").value || null;
     if (!datos.p_nombre) return aviso("Pon el nombre de quien cumple años");
   } else {
-    datos.p_mesa = $("mesaF").value.trim(); datos.p_foto = fotoDatos;
+    datos.p_mesa = limpiaQuien($("mesaF").value); datos.p_foto = fotoDatos;
     if (!fotoDatos) return aviso("Elige una foto");
     if (!$("permiso").checked) return aviso("Marca la casilla: todos los de la foto tienen que estar de acuerdo");
   }
