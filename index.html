@@ -35,6 +35,18 @@
   #aviso { margin-top: 16px; padding: 14px; border-radius: 14px; text-align: center; font-weight: 700; display: none; }
   #aviso.bien { display: block; background: rgba(61,220,132,.15); color: var(--ok); }
   #aviso.mal { display: block; background: rgba(255,90,90,.15); color: #ff8a8a; }
+  .mesa-top { display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--suave); font-size: 14px; margin: -8px 0 14px; }
+  .mesa-top b { color: var(--oro); font-size: 16px; }
+  .mesa-top button { border: 1px solid var(--borde); background: var(--caja); color: var(--texto); border-radius: 10px; padding: 6px 10px; font: inherit; font-size: 13px; }
+  .emojis { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .emojis button { aspect-ratio: 1; border: 1px solid var(--borde); border-radius: 26px; background: #110c1c; font-size: 64px; line-height: 1;
+                   -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: transform .08s; user-select: none; -webkit-user-select: none; }
+  .emojis button:active { transform: scale(.9); background: #241a36; }
+  .vuela { position: fixed; font-size: 42px; pointer-events: none; animation: subir 1.1s ease-out forwards; z-index: 5; }
+  @keyframes subir { to { transform: translate(var(--dx), -220px) scale(1.4); opacity: 0; } }
+  .modal { position: fixed; inset: 0; background: rgba(8,5,14,.86); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 9; }
+  .modal.abierta { display: flex; }
+  .modal .caja { display: block; width: 100%; max-width: 380px; }
   .pie { text-align: center; color: var(--suave); font-size: 12px; margin-top: 20px; }
 </style>
 </head>
@@ -43,13 +55,22 @@
 <h1>¿Quieres salir en las pantallas del local? 📺</h1>
 <p class="sub">Lo que envíes lo revisa el equipo y, si está todo bien, sale en la pantalla.</p>
 
+<div class="mesa-top">📍 Estás en la mesa <b id="mesaTxt">—</b> <button id="cambiarMesa">Cambiar</button></div>
+
 <div class="pestanas">
-  <button data-p="dedicatoria" class="activa">💬 Dedicatoria</button>
+  <button data-p="reaccionar" class="activa">🔥 Reaccionar</button>
+  <button data-p="dedicatoria">💬 Dedicatoria</button>
   <button data-p="cumple">🎂 Cumpleaños</button>
   <button data-p="foto">📸 Foto</button>
 </div>
 
-<div class="caja activa" id="dedicatoria">
+<div class="caja activa" id="reaccionar">
+  <p class="sub" style="margin:0 0 14px">Pulsa todas las veces que quieras: salen en la tele y llenan la barra del ambiente 🔥</p>
+  <div class="emojis"><button data-emoji="🔥">🔥</button><button data-emoji="😂">😂</button><button data-emoji="❤️">❤️</button><button data-emoji="🎉">🎉</button></div>
+  <p class="sub" style="margin:14px 0 0">🎡 Las mesas que participan entran en la <b>ruleta de la suerte</b>.</p>
+</div>
+
+<div class="caja" id="dedicatoria">
   <label>Tu mesa</label><input type="text" id="mesaD" maxlength="10" inputmode="numeric" placeholder="Ej.: 7">
   <label>Tu mensaje</label><textarea id="texto" maxlength="90" placeholder="Feliz cumple, Laura 🎉 · Saludos a la mesa 7"></textarea>
   <div class="cuenta"><span id="cuenta">0</span>/90</div>
@@ -75,6 +96,12 @@
 </div>
 
 <div id="aviso"></div>
+<div class="modal" id="pideMesa"><div class="caja">
+  <label style="margin-top:0;font-size:18px">¿En qué mesa estáis? 📍</label>
+  <input type="text" id="mesaNueva" maxlength="10" inputmode="numeric" placeholder="Ej.: 7">
+  <p class="sub" style="text-align:left;margin:8px 0 0">Así vuestra mesa entra en la ruleta de la suerte 🎡</p>
+  <button class="enviar" id="guardarMesa">Listo</button>
+</div></div>
 <p class="pie">Darkom's Shisha Bar · @darkomsshishabar<br>Los mensajes y fotos se borran a las 24 horas.</p>
 
 <script>
@@ -83,6 +110,38 @@ const SUPABASE = "https://xgsuhnrmdjlzwxaqfpol.supabase.co", CLAVE = "sb_publish
 const codigo = new URLSearchParams(location.search).get("c") || "";
 const $ = id => document.getElementById(id);
 let fotoDatos = null;
+const rpc = (f, datos) => fetch(SUPABASE + "/rest/v1/rpc/" + f, { method: "POST",
+  headers: { apikey: CLAVE, Authorization: "Bearer " + CLAVE, "Content-Type": "application/json" }, body: JSON.stringify(datos) }).then(r => r.json());
+const guarda = (k, v) => { try { localStorage.setItem(k, v); } catch {} }, lee = k => { try { return localStorage.getItem(k); } catch { return null; } };
+// cada móvil tiene su número (para el «espera un momento»: en el WiFi del bar todos comparten conexión)
+const disp = lee("darkoms_disp") || (() => { const d = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now()); guarda("darkoms_disp", d); return d; })();
+// la mesa se pregunta SIEMPRE al abrir la página (la gente cambia de mesa); sale escrita la última para ir rápido
+let mesa = "", mesaAntes = (() => { try { return JSON.parse(lee("darkoms_mesa")).m || ""; } catch { return ""; } })();
+function ponerMesa(m) {
+  mesa = m; guarda("darkoms_mesa", JSON.stringify({ m, t: Date.now() })); $("mesaTxt").textContent = m || "—";
+  ["mesaD", "mesaC", "mesaF"].forEach(id => $(id).value = m);
+}
+const pedirMesa = () => { $("mesaNueva").value = mesa || mesaAntes; $("pideMesa").classList.add("abierta"); setTimeout(() => $("mesaNueva").focus(), 50); };
+$("guardarMesa").onclick = () => { const m = $("mesaNueva").value.trim(); if (!m) return $("mesaNueva").focus(); ponerMesa(m); $("pideMesa").classList.remove("abierta"); };
+$("cambiarMesa").onclick = pedirMesa;
+ponerMesa(mesa); if (codigo && !mesa) pedirMesa();
+// reacciones: se juntan y se mandan en grupos (como mucho 15 cada 1,7 s)
+let lote = {}, enLote = 0, mandando = false;
+document.querySelectorAll("[data-emoji]").forEach(b => b.onclick = () => {
+  if (!codigo) return aviso("Escanea el QR que sale en la tele del bar para participar 📲");
+  if (!mesa) return pedirMesa();
+  const e = b.dataset.emoji; if (enLote < 15) { lote[e] = (lote[e] || 0) + 1; enLote++; }
+  const r = b.getBoundingClientRect(), v = Object.assign(document.createElement("span"), { className: "vuela", textContent: e });
+  v.style.left = r.left + r.width / 2 - 21 + "px"; v.style.top = r.top + r.height / 2 - 26 + "px"; v.style.setProperty("--dx", (Math.random() * 80 - 40) + "px");
+  document.body.appendChild(v); setTimeout(() => v.remove(), 1200);
+  if (navigator.vibrate) navigator.vibrate(8);
+});
+setInterval(async () => {
+  if (!enLote || mandando) return;
+  const este = lote; lote = {}; enLote = 0; mandando = true;
+  try { const r = await rpc("reaccionar", { p_codigo: codigo, p_emojis: este, p_mesa: mesa, p_disp: disp }); if (r === "codigo") aviso(MENSAJES.codigo); } catch {}
+  mandando = false;
+}, 1700);
 
 document.querySelectorAll(".pestanas button").forEach(b => b.onclick = () => {
   document.querySelectorAll(".pestanas button").forEach(x => x.classList.toggle("activa", x === b));
@@ -113,7 +172,7 @@ const MENSAJES = { codigo: "El código ha caducado: vuelve a escanear el QR de l
 
 document.querySelectorAll("[data-enviar]").forEach(b => b.onclick = async () => {
   const tipo = b.dataset.enviar;
-  const datos = { p_codigo: codigo, p_tipo: tipo, p_mesa: null, p_texto: null, p_nombre: null, p_hora: null, p_foto: null };
+  const datos = { p_codigo: codigo, p_tipo: tipo, p_mesa: null, p_texto: null, p_nombre: null, p_hora: null, p_foto: null, p_disp: disp };
   if (!codigo) return aviso("Escanea el QR que sale en la tele del bar para participar 📲");
   if (tipo === "dedicatoria") {
     datos.p_mesa = $("mesaD").value.trim(); datos.p_texto = $("texto").value.trim();
@@ -128,9 +187,7 @@ document.querySelectorAll("[data-enviar]").forEach(b => b.onclick = async () => 
   }
   b.disabled = true; aviso("Enviando…", true);
   try {
-    const r = await fetch(SUPABASE + "/rest/v1/rpc/enviar", { method: "POST",
-      headers: { apikey: CLAVE, Authorization: "Bearer " + CLAVE, "Content-Type": "application/json" }, body: JSON.stringify(datos) });
-    const res = await r.json();
+    const res = await rpc("enviar", datos);
     if (res === "ok") {
       aviso("¡Enviado! 🎉 En cuanto el equipo lo apruebe, sale en la tele.", true);
       if (tipo === "dedicatoria") { $("texto").value = ""; $("cuenta").textContent = "0"; }
