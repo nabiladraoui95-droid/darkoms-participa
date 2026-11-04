@@ -48,6 +48,7 @@
   .modal.abierta { display: flex; }
   .modal .caja { display: block; width: 100%; max-width: 380px; }
   .pestanas.cinco { gap: 5px; }
+  .pestanas.seis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .pestanas.cinco button { font-size: 11px; padding: 10px 1px; letter-spacing: -.2px; }
   .mapa { position: relative; border-radius: 14px; overflow: hidden; border: 1px solid var(--borde); }
   .mapa img { display: block; width: 100%; }
@@ -75,6 +76,7 @@
   <button data-p="dedicatoria">💬 Dedicatoria</button>
   <button data-p="cumple">🎂 Cumple</button>
   <button data-p="foto">📸 Foto</button>
+  <button data-p="juegos" id="pestJuegos" style="display:none">🎲 Juegos</button>
 </div>
 
 <div class="caja activa" id="reaccionar">
@@ -107,6 +109,8 @@
     Todas las personas que salen en la foto están de acuerdo en que aparezca en la pantalla del bar. Se borra mañana.</label>
   <button class="enviar" data-enviar="foto">Enviar la foto</button>
 </div>
+
+<div class="caja" id="juegos"></div>
 
 <div class="caja" id="personal">
   <label style="margin-top:0">1. Toca en el mapa dónde estás 📍</label>
@@ -205,7 +209,7 @@ function reducir(archivo, max, calidad) {
   });
 }
 function aviso(txt, bien) { const a = $("aviso"); a.textContent = txt; a.className = txt ? (bien ? "bien" : "mal") : ""; }
-const MENSAJES = { codigo: "El código ha caducado: vuelve a escanear el QR de la tele 📲", espera: "Espera un momento antes de enviar otra cosa 🙂",
+const MENSAJES = { codigo: "El código ha caducado: vuelve a escanear el QR de la tele 📲", espera: "Ahora mismo hay muchos envíos: prueba otra vez en un minuto 🙂",
                    lleno: "Ahora mismo hay muchos envíos. Prueba en unos minutos." };
 
 document.querySelectorAll("[data-enviar]").forEach(b => b.onclick = async () => {
@@ -225,7 +229,19 @@ document.querySelectorAll("[data-enviar]").forEach(b => b.onclick = async () => 
   }
   b.disabled = true; aviso("Enviando…", true);
   try {
-    const res = await rpc("enviar", datos);
+    let res;
+    for (let intento = 0; intento < 6; intento++) {
+      res = await rpc("enviar", datos);
+      if (res !== "espera") break;
+      // cada móvil puede enviar una cosa cada 15 s: no se pierde, se queda guardado y se manda solo al terminar la espera
+      const ultimo = +lee("darkoms_ultimo_envio") || Date.now();
+      for (let falta = Math.max(3, Math.ceil(16 - (Date.now() - ultimo) / 1000)); falta > 0; falta--) {
+        aviso(`⏳ Acabas de enviar algo: te lo mandamos solo en ${falta} s. No cierres la página.`, true);
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      aviso("Enviando…", true);
+    }
+    if (res === "ok") guarda("darkoms_ultimo_envio", String(Date.now()));
     if (res === "ok") {
       aviso("¡Enviado! 🎉 En cuanto el equipo lo apruebe, sale en la tele.", true);
       if (tipo === "dedicatoria") { $("texto").value = ""; $("cuenta").textContent = "0"; }
@@ -281,7 +297,14 @@ function seguir() {                                      // cómo va lo que he p
   mirar(); siguiendo = setInterval(mirar, 5000); setTimeout(() => clearInterval(siguiendo), 30 * 60e3);
 }
 (() => { try { const l = JSON.parse(lee("darkoms_llamada")); if (l && Date.now() - l.t < 30 * 60e3) { llamada = l.id; seguir(); } } catch {} })();
-rpc("servicio_activo", {}).then(on => { if (on === true) { $("pestPersonal").style.display = ""; document.querySelector(".pestanas").classList.add("cinco"); } }).catch(() => {});
+// pestañas que salen solo si están activadas en el panel: «Personal» y «Juegos» (con 6 pestañas, en dos filas)
+const ajustarPestanas = () => {
+  const n = [...document.querySelectorAll(".pestanas button")].filter(b => b.style.display !== "none").length, p = document.querySelector(".pestanas");
+  p.classList.toggle("cinco", n === 5); p.classList.toggle("seis", n >= 6);
+};
+rpc("servicio_activo", {}).then(on => { if (on === true) { $("pestPersonal").style.display = ""; ajustarPestanas(); } }).catch(() => {});
+rpc("juegos_activo", {}).then(on => { if (on === true) { $("pestJuegos").style.display = ""; ajustarPestanas(); } }).catch(() => {});
 </script>
+<script src="juegos.js" defer></script>
 </body>
 </html>
