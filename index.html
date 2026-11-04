@@ -14,7 +14,7 @@
   h1 { text-align: center; font-size: 22px; margin: 6px 0 2px; }
   .sub { text-align: center; color: var(--suave); margin: 0 0 18px; font-size: 14px; }
   .pestanas { display: flex; gap: 8px; margin-bottom: 14px; }
-  .pestanas button { flex: 1; border: 1px solid var(--borde); background: var(--caja); color: var(--suave); border-radius: 14px;
+  .pestanas button { flex: 1; min-width: 0; border: 1px solid var(--borde); background: var(--caja); color: var(--suave); border-radius: 14px;
                      padding: 12px 6px; font: inherit; font-weight: 700; font-size: 14px; }
   .pestanas button.activa { color: #111; background: var(--oro); border-color: var(--oro); }
   .caja { background: var(--caja); border: 1px solid var(--borde); border-radius: 18px; padding: 16px; display: none; }
@@ -47,9 +47,8 @@
   .modal { position: fixed; inset: 0; background: rgba(8,5,14,.86); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 9; }
   .modal.abierta { display: flex; }
   .modal .caja { display: block; width: 100%; max-width: 380px; }
-  .boton-personal { width: 100%; margin: 0 0 14px; border: 1px solid #3ddc84; background: rgba(61,220,132,.12); color: #3ddc84; border-radius: 14px;
-                    padding: 13px; font: inherit; font-weight: 800; font-size: 16px; display: none; }
-  .boton-personal.activa { background: #3ddc84; color: #111; }
+  .pestanas.cinco { gap: 5px; }
+  .pestanas.cinco button { font-size: 11px; padding: 10px 1px; letter-spacing: -.2px; }
   .mapa { position: relative; border-radius: 14px; overflow: hidden; border: 1px solid var(--borde); }
   .mapa img { display: block; width: 100%; }
   .mapa svg { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -70,12 +69,11 @@
 
 <div class="mesa-top">👋 Participas como <b id="mesaTxt">—</b> <button id="cambiarMesa">Cambiar</button></div>
 
-<button class="boton-personal" id="abrirPersonal">🙋 Llamar al camarero · cambiar carbones · la cuenta</button>
-
 <div class="pestanas">
   <button data-p="reaccionar" class="activa">🔥 Reaccionar</button>
+  <button data-p="personal" id="pestPersonal" style="display:none">🙋 Personal</button>
   <button data-p="dedicatoria">💬 Dedicatoria</button>
-  <button data-p="cumple">🎂 Cumpleaños</button>
+  <button data-p="cumple">🎂 Cumple</button>
   <button data-p="foto">📸 Foto</button>
 </div>
 
@@ -114,8 +112,8 @@
   <label style="margin-top:0">1. Toca en el mapa dónde estás 📍</label>
   <div class="mapa"><img src="mapa.webp" alt="Mapa del local"><svg viewBox="0 0 502 900" preserveAspectRatio="none" id="zonas"></svg></div>
   <p class="sub" id="zonaTxt" style="margin:8px 0 0">Todavía no has elegido zona.</p>
-  <label>2. ¿Cómo te reconocemos? (opcional)</label>
-  <input type="text" id="detalle" maxlength="60" placeholder="Ej.: sofá junto a la tele, camiseta roja">
+  <label>2. Mesa o nombre</label>
+  <input type="text" id="detalle" maxlength="60" placeholder="Ej.: Mesa 7 o Laura">
   <label>3. ¿Qué necesitas?</label>
   <div class="pedidos">
     <button data-pedir="camarero">🙋 Que venga un camarero</button><button data-pedir="carbones">🔥 Cambiar carbones</button>
@@ -159,6 +157,7 @@ let mesa = "", mesaAntes = (() => { try { return JSON.parse(lee("darkoms_mesa"))
 function ponerMesa(m) {
   mesa = limpiaQuien(m); if (mesa) guarda("darkoms_mesa", JSON.stringify({ m: mesa, t: Date.now() })); $("mesaTxt").textContent = mesa ? etiqueta(mesa) : "—"; m = mesa;
   ["mesaD", "mesaC", "mesaF"].forEach(id => $(id).value = m);
+  if ($("detalle")) $("detalle").value = mesa ? etiqueta(mesa) : "";
 }
 const pedirMesa = () => { $("mesaNueva").value = mesa || mesaAntes; $("pideMesa").classList.add("abierta"); setTimeout(() => $("mesaNueva").focus(), 50); };
 $("guardarMesa").onclick = () => { const m = limpiaQuien($("mesaNueva").value); if (!m || m === "@") return $("mesaNueva").focus(); ponerMesa(m); $("pideMesa").classList.remove("abierta"); };
@@ -185,7 +184,7 @@ setInterval(async () => {
 document.querySelectorAll(".pestanas button").forEach(b => b.onclick = () => {
   document.querySelectorAll(".pestanas button").forEach(x => x.classList.toggle("activa", x === b));
   document.querySelectorAll(".caja").forEach(c => c.classList.toggle("activa", c.id === b.dataset.p));
-  $("abrirPersonal").classList.remove("activa"); aviso("");
+  aviso("");
 });
 $("texto").oninput = () => $("cuenta").textContent = $("texto").value.length;
 $("elegir").onclick = () => $("archivo").click();
@@ -241,8 +240,7 @@ if (!codigo) aviso("Escanea el QR que sale en la tele del bar para participar �
 // zonas dibujadas sobre el mapa (coordenadas del mapa a 502 × 900); [nombre, polígono, x e y de la etiqueta]
 const ZONAS = [
   ["Terraza 1", "27,172 240,172 240,205 72,205 72,418 27,418", 150, 194],
-  ["Darkom 1", "72,205 232,205 232,418 215,418 215,355 100,355 100,418 72,418", 152, 285],
-  ["Zona de shishas", "100,355 215,355 215,418 100,418", 157, 393],
+  ["Darkom 1", "72,205 232,205 232,418 72,418", 152, 300],
   ["Sala de baile", "222,418 392,418 392,716 222,716", 307, 560],
   ["Salón de juego", "28,660 222,660 222,716 392,716 392,866 28,866", 210, 790],
   ["Terraza 2", "376,172 470,172 470,792 376,792", 423, 480]];
@@ -253,11 +251,6 @@ $("zonas").onclick = e => {
   const z = e.target.dataset?.zona; if (!z) return;
   zona = z; document.querySelectorAll("#zonas polygon").forEach(p => p.classList.toggle("elegida", p.dataset.zona === z));
   $("zonaTxt").textContent = "📍 Estás en: " + z;
-};
-$("abrirPersonal").onclick = () => {
-  document.querySelectorAll(".pestanas button").forEach(x => x.classList.remove("activa"));
-  document.querySelectorAll(".caja").forEach(c => c.classList.toggle("activa", c.id === "personal"));
-  $("abrirPersonal").classList.add("activa"); aviso("");
 };
 const TEXTO_LLAMADA = { cerrado: "Ahora mismo no está activo: pídelo en la barra 🙂", codigo: MENSAJES.codigo, espera: "Ya hemos avisado al equipo: espera un momento 🙂" };
 async function pedir(tipo, texto) {
@@ -288,7 +281,7 @@ function seguir() {                                      // cómo va lo que he p
   mirar(); siguiendo = setInterval(mirar, 5000); setTimeout(() => clearInterval(siguiendo), 30 * 60e3);
 }
 (() => { try { const l = JSON.parse(lee("darkoms_llamada")); if (l && Date.now() - l.t < 30 * 60e3) { llamada = l.id; seguir(); } } catch {} })();
-rpc("servicio_activo", {}).then(on => { if (on === true) $("abrirPersonal").style.display = "block"; }).catch(() => {});
+rpc("servicio_activo", {}).then(on => { if (on === true) { $("pestPersonal").style.display = ""; document.querySelector(".pestanas").classList.add("cinco"); } }).catch(() => {});
 </script>
 </body>
 </html>
